@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparativa Stock ERP vs WMS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:       #0f1117;
+    --surface:  #171b26;
+    --surface2: #1e2335;
+    --border:   #2a3050;
+    --accent:   #4f8ef7;
+    --accent2:  #7c5cfc;
+    --ok:       #22c55e;
+    --ok-bg:    #0d2818;
+    --erp:      #f97316;
+    --erp-bg:   #2a1500;
+    --wms:      #38bdf8;
+    --wms-bg:   #0a1e2e;
+    --solo-erp: #facc15;
+    --solo-erp-bg: #211d00;
+    --solo-wms: #fb923c;
+    --solo-wms-bg: #251000;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.2;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header { margin-bottom: 48px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 700;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { color: var(--muted); margin-top: 10px; font-size: 14px; font-weight: 300; }
+
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  @media(max-width:640px){ .upload-grid { grid-template-columns: 1fr; } }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--surface);
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--accent); background: #151c30; }
+  .drop-zone.loaded { border-color: var(--ok); border-style: solid; }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width:100%; height:100%; }
+  .dz-icon { font-size: 28px; margin-bottom: 10px; }
+  .dz-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .dz-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .dz-file { font-size: 12px; color: var(--ok); margin-top: 8px; font-family: var(--mono); display: none; }
+  .drop-zone.loaded .dz-file { display: block; }
+
+  .btn-generate {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    margin-bottom: 32px;
+  }
+  .btn-generate:hover { opacity: .9; }
+  .btn-generate:active { transform: scale(.99); }
+  .btn-generate:disabled { opacity: .35; cursor: not-allowed; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-val { font-family: var(--mono); font-size: 28px; font-weight: 600; }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card.ok   { border-color: var(--ok);       } .stat-card.ok   .stat-val { color: var(--ok); }
+  .stat-card.erp  { border-color: var(--erp);      } .stat-card.erp  .stat-val { color: var(--erp); }
+  .stat-card.wms  { border-color: var(--wms);      } .stat-card.wms  .stat-val { color: var(--wms); }
+  .stat-card.serp { border-color: var(--solo-erp); } .stat-card.serp .stat-val { color: var(--solo-erp); }
+  .stat-card.swms { border-color: var(--solo-wms); } .stat-card.swms .stat-val { color: var(--solo-wms); }
+
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { color: #fff; border-color: var(--accent); background: var(--accent); }
+  .filter-btn.f-ok.active   { background: var(--ok);       border-color: var(--ok); }
+  .filter-btn.f-erp.active  { background: var(--erp);      border-color: var(--erp); }
+  .filter-btn.f-wms.active  { background: var(--wms);      border-color: var(--wms); color:#000; }
+  .filter-btn.f-serp.active { background: var(--solo-erp); border-color: var(--solo-erp); color:#000; }
+  .filter-btn.f-swms.active { background: var(--solo-wms); border-color: var(--solo-wms); color:#000; }
+
+  .search-box {
+    margin-left: auto;
+    padding: 6px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    width: 220px;
+    transition: border-color .2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--muted); }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .row-count { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .btn-export {
+    padding: 8px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .btn-export:hover { border-color: var(--accent); color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); max-height: 60vh; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    background: var(--surface2);
+    padding: 12px 10px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  thead th:hover { color: var(--text); }
+  thead th .sort-icon { margin-left: 4px; opacity: .4; }
+  thead th.sorted .sort-icon { opacity: 1; color: var(--accent); }
+
+  tbody tr { border-bottom: 1px solid #1a1f30; transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(79,142,247,.06); }
+
+  td { padding: 9px 10px; white-space: nowrap; }
+  td.wrap { white-space: normal; max-width: 260px; line-height: 1.4; }
+  td.mono { font-family: var(--mono); }
+  td.num  { font-family: var(--mono); text-align: right; }
+  td.center { text-align: center; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    white-space: nowrap;
+  }
+  .b-ok   { background: var(--ok-bg);       color: var(--ok);       border: 1px solid var(--ok); }
+  .b-erp  { background: var(--erp-bg);      color: var(--erp);      border: 1px solid var(--erp); }
+  .b-wms  { background: var(--wms-bg);      color: var(--wms);      border: 1px solid var(--wms); }
+  .b-serp { background: var(--solo-erp-bg); color: var(--solo-erp); border: 1px solid var(--solo-erp); }
+  .b-swms { background: var(--solo-wms-bg); color: var(--solo-wms); border: 1px solid var(--solo-wms); }
+
+  .diff-pos { color: var(--erp); font-weight: 600; }
+  .diff-neg { color: var(--wms); font-weight: 600; }
+  .diff-ok  { color: var(--ok); }
+
+  #placeholder {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+  }
+  #placeholder .big { font-size: 48px; margin-bottom: 16px; opacity: .3; }
+  #results { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">// Depósito 407</div>
+    <h1>Comparativa<br>ERP vs WMS</h1>
+    <p class="subtitle">Subí los dos archivos para generar el reporte de diferencias de stock</p>
+  </header>
+
+  <div class="upload-grid">
+    <div class="drop-zone" id="dz-erp">
+      <input type="file" accept=".xlsx,.xls" id="inp-erp">
+      <div class="dz-icon">📋</div>
+      <div class="dz-label">Listado de Stock ERP</div>
+      <div class="dz-sub">columna clave → Stock</div>
+      <div class="dz-file" id="lbl-erp">—</div>
+    </div>
+    <div class="drop-zone" id="dz-wms">
+      <input type="file" accept=".xlsx,.xls" id="inp-wms">
+      <div class="dz-icon">🏭</div>
+      <div class="dz-label">Reporte Ubicación WMS</div>
+      <div class="dz-sub">columna clave → Unids</div>
+      <div class="dz-file" id="lbl-wms">—</div>
+    </div>
+  </div>
+
+  <button class="btn-generate" id="btn-gen" disabled>⚡ Generar Comparativa</button>
+
+  <div id="placeholder">
+    <div class="big">⚖</div>
+    Cargá los dos archivos para ver el reporte
+  </div>
+
+  <div id="results">
+    <div class="stats" id="stats-row"></div>
+    <div class="filter-bar" id="filter-bar"></div>
+    <div class="toolbar">
+      <span class="row-count" id="row-count"></span>
+      <button class="btn-export" id="btn-export">⬇ Exportar Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th data-col="codigo">Código <span class="sort-icon">↕</span></th>
+            <th data-col="articulo">Artículo <span class="sort-icon">↕</span></th>
+            <th data-col="rubro">Rubro <span class="sort-icon">↕</span></th>
+            <th data-col="grupo">Grupo <span class="sort-icon">↕</span></th>
+            <th data-col="uxb">UxB <span class="sort-icon">↕</span></th>
+            <th data-col="stock_erp">Stock ERP <span class="sort-icon">↕</span></th>
+            <th data-col="stock_wms">Stock WMS <span class="sort-icon">↕</span></th>
+            <th data-col="diff">Diferencia <span class="sort-icon">↕</span></th>
+            <th data-col="estado">Estado <span class="sort-icon">↕</span></th>
+            <th data-col="ubicaciones">Ubicación WMS <span class="sort-icon">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<script>
+let allRows = [], filteredRows = [];
+let activeFilter = 'TODOS', searchText = '';
+let sortCol = null, sortDir = 1;
+let erpData = null, wmsData = null;
+
+function setupDrop(dzId, inpId, lblId, key) {
+  const dz = document.getElementById(dzId);
+  const inp = document.getElementById(inpId);
+  const lbl = document.getElementById(lblId);
+  inp.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0], key, dz, lbl); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0], key, dz, lbl);
+  });
+}
+
+function loadFile(file, key, dz, lbl) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (key === 'erp') erpData = json; else wmsData = json;
+    dz.classList.add('loaded');
+    lbl.textContent = '✓ ' + file.name;
+    if (erpData && wmsData) document.getElementById('btn-gen').disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+setupDrop('dz-erp','inp-erp','lbl-erp','erp');
+setupDrop('dz-wms','inp-wms','lbl-wms','wms');
+
+document.getElementById('btn-gen').addEventListener('click', process);
+
+function getCol(obj, ...names) {
+  const keys = Object.keys(obj);
+  for (const n of names) {
+    const k = keys.find(k => k.trim().toLowerCase() === n.toLowerCase());
+    if (k !== undefined) return obj[k];
+  }
+  return '';
+}
+
+function process() {
+  // Build ERP map
+  const erpMap = {};
+  for (const row of erpData) {
+    const cod = String(getCol(row,'Codigo','Código','CODIGO') || '').trim();
+    if (!cod) continue;
+    erpMap[cod] = {
+      articulo: getCol(row,'Articulo','Artículo','ARTICULO') || '',
+      rubro:    getCol(row,'Rubro','RUBRO') || '',
+      grupo:    getCol(row,'Grupo','GRUPO') || '',
+      uxb:      getCol(row,'UxB','uxb','UXB') || '',
+      stock:    Number(getCol(row,'Stock','STOCK') || 0),
+    };
+  }
+
+  // Build WMS map
+  const wmsMap = {};
+  for (const row of wmsData) {
+    const codRaw = getCol(row,'Artículo','Articulo','ARTICULO','articulo');
+    if (codRaw === '' || codRaw === null || codRaw === undefined) continue;
+    const cod = String(Math.round(Number(codRaw)));
+    if (!cod || cod === 'NaN') continue;
+    const unids = Number(getCol(row,'Unids','UNIDS','unids') || 0);
+    const cara  = String(getCol(row,'Cara','CARA') || '').trim();
+    const colVal = getCol(row,'Columna','COLUMNA');
+    const nivVal = getCol(row,'Nivel','NIVEL');
+    const ubiStr = [
+      cara,
+      colVal !== '' ? Math.round(Number(colVal)) : '',
+      nivVal !== '' ? Math.round(Number(nivVal)) : ''
+    ].filter(x => x !== '').join('-');
+    if (!wmsMap[cod]) wmsMap[cod] = { unids: 0, ubis: new Set(), desc: '' };
+    wmsMap[cod].unids += unids;
+    if (ubiStr) wmsMap[cod].ubis.add(ubiStr);
+    if (!wmsMap[cod].desc) wmsMap[cod].desc = String(getCol(row,'Descripción','Descripcion','DESCRIPCION') || '');
+  }
+
+  allRows = [];
+  const ordMap = {'OK':0,'ERP > WMS':1,'WMS > ERP':2,'Solo en ERP':3,'Solo en WMS':4};
+
+  for (const [cod, e] of Object.entries(erpMap)) {
+    const w = wmsMap[cod];
+    const stockWms = w ? w.unids : 0;
+    const diff = e.stock - stockWms;
+    let estado;
+    if (!w || stockWms === 0) { estado = e.stock > 0 ? 'Solo en ERP' : 'OK'; }
+    else if (diff === 0) { estado = 'OK'; }
+    else { estado = diff > 0 ? 'ERP > WMS' : 'WMS > ERP'; }
+    allRows.push({
+      codigo: cod, articulo: e.articulo, rubro: e.rubro, grupo: e.grupo, uxb: e.uxb,
+      stock_erp: e.stock, stock_wms: stockWms, diff, estado,
+      ubicaciones: w ? [...w.ubis].sort().join(' | ') : '',
+      _ord: ordMap[estado] || 0
+    });
+  }
+
+  const erpCods = new Set(Object.keys(erpMap));
+  for (const [cod, w] of Object.entries(wmsMap)) {
+    if (!erpCods.has(cod)) {
+      allRows.push({
+        codigo: cod, articulo: w.desc, rubro: '', grupo: '', uxb: '',
+        stock_erp: 0, stock_wms: w.unids, diff: -w.unids, estado: 'Solo en WMS',
+        ubicaciones: [...w.ubis].sort().join(' | '), _ord: 4
+      });
+    }
+  }
+
+  allRows.sort((a,b) => a._ord - b._ord);
+
+  renderStats();
+  renderFilters();
+  applyFilter();
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+}
+
+function counts() {
+  const c = {};
+  for (const r of allRows) c[r.estado] = (c[r.estado]||0)+1;
+  return c;
+}
+
+function renderStats() {
+  const c = counts();
+  const items = [
+    { cls:'',     val: allRows.length,           lbl: 'Total' },
+    { cls:'ok',   val: c['OK']||0,               lbl: 'OK' },
+    { cls:'erp',  val: c['ERP > WMS']||0,        lbl: 'ERP > WMS' },
+    { cls:'wms',  val: c['WMS > ERP']||0,        lbl: 'WMS > ERP' },
+    { cls:'serp', val: c['Solo en ERP']||0,      lbl: 'Solo ERP' },
+    { cls:'swms', val: c['Solo en WMS']||0,      lbl: 'Solo WMS' },
+  ];
+  document.getElementById('stats-row').innerHTML = items.map(i =>
+    `<div class="stat-card ${i.cls}"><div class="stat-val">${i.val}</div><div class="stat-lbl">${i.lbl}</div></div>`
+  ).join('');
+}
+
+function renderFilters() {
+  const c = counts();
+  const filters = [
+    { key:'TODOS',       label:`Todos (${allRows.length})`,           cls:'' },
+    { key:'OK',          label:`OK (${c['OK']||0})`,                  cls:'f-ok' },
+    { key:'ERP > WMS',   label:`ERP > WMS (${c['ERP > WMS']||0})`,    cls:'f-erp' },
+    { key:'WMS > ERP',   label:`WMS > ERP (${c['WMS > ERP']||0})`,    cls:'f-wms' },
+    { key:'Solo en ERP', label:`Solo ERP (${c['Solo en ERP']||0})`,   cls:'f-serp' },
+    { key:'Solo en WMS', label:`Solo WMS (${c['Solo en WMS']||0})`,   cls:'f-swms' },
+  ];
+  const bar = document.getElementById('filter-bar');
+  bar.innerHTML = filters.map(f =>
+    `<button class="filter-btn ${f.cls}${f.key===activeFilter?' active':''}" data-key="${f.key}">${f.label}</button>`
+  ).join('') +
+  `<input type="text" class="search-box" id="search-box" placeholder="🔍  Buscar artículo..." value="${searchText}">`;
+  bar.querySelectorAll('.filter-btn').forEach(btn =>
+    btn.addEventListener('click', () => { activeFilter = btn.dataset.key; renderFilters(); applyFilter(); })
+  );
+  document.getElementById('search-box').addEventListener('input', e => {
+    searchText = e.target.value.toLowerCase(); applyFilter();
+  });
+}
+
+function applyFilter() {
+  filteredRows = allRows.filter(r => {
+    const mf = activeFilter === 'TODOS' || r.estado === activeFilter;
+    const ms = !searchText ||
+      r.codigo.toLowerCase().includes(searchText) ||
+      r.articulo.toLowerCase().includes(searchText) ||
+      r.rubro.toLowerCase().includes(searchText) ||
+      r.grupo.toLowerCase().includes(searchText);
+    return mf && ms;
+  });
+  if (sortCol) {
+    filteredRows.sort((a,b) => {
+      let av = a[sortCol], bv = b[sortCol];
+      return (typeof av === 'number' ? av-bv : String(av).localeCompare(String(bv))) * sortDir;
+    });
+  }
+  renderTable();
+}
+
+const badgeMap = { 'OK':'b-ok','ERP > WMS':'b-erp','WMS > ERP':'b-wms','Solo en ERP':'b-serp','Solo en WMS':'b-swms' };
+
+function renderTable() {
+  document.getElementById('row-count').textContent = `${filteredRows.length} artículos`;
+  document.getElementById('tbody').innerHTML = filteredRows.map(r => {
+    const dc = r.diff > 0 ? 'diff-pos' : r.diff < 0 ? 'diff-neg' : 'diff-ok';
+    const ds = r.diff > 0 ? `+${r.diff.toLocaleString('es')}` : r.diff.toLocaleString('es');
+    return `<tr>
+      <td class="mono">${r.codigo}</td>
+      <td class="wrap">${r.articulo}</td>
+      <td>${r.rubro}</td>
+      <td>${r.grupo}</td>
+      <td class="mono center">${r.uxb}</td>
+      <td class="num">${r.stock_erp.toLocaleString('es')}</td>
+      <td class="num">${r.stock_wms.toLocaleString('es')}</td>
+      <td class="num ${dc}">${ds}</td>
+      <td class="center"><span class="badge ${badgeMap[r.estado]||''}">${r.estado}</span></td>
+      <td class="mono wrap" style="font-size:11px;color:#94a3b8">${r.ubicaciones}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('tbl').querySelector('thead').addEventListener('click', e => {
+  const th = e.target.closest('th'); if (!th) return;
+  const col = th.dataset.col; if (!col) return;
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+  document.querySelectorAll('thead th').forEach(t => { t.classList.remove('sorted'); t.querySelector('.sort-icon').textContent='↕'; });
+  th.classList.add('sorted');
+  th.querySelector('.sort-icon').textContent = sortDir === 1 ? '↑' : '↓';
+  applyFilter();
+});
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const wb = XLSX.utils.book_new();
+  const hdr = ['Código','Artículo','Rubro','Grupo','UxB','Stock ERP','Stock WMS','Diferencia (ERP-WMS)','Estado','Ubicación WMS (Cara-Col-Nivel)'];
+  const toRow = r => [r.codigo, r.articulo, r.rubro, r.grupo, r.uxb, r.stock_erp, r.stock_wms, r.diff, r.estado, r.ubicaciones];
+  const cols  = [8,50,24,16,6,10,10,12,14,32].map(w=>({wch:w}));
+
+  const ws1 = XLSX.utils.aoa_to_sheet([hdr, ...allRows.map(toRow)]);
+  ws1['!cols'] = cols;
+  XLSX.utils.book_append_sheet(wb, ws1, 'Comparativa Completa');
+
+  const ws2 = XLSX.utils.aoa_to_sheet([hdr, ...allRows.filter(r=>r.estado!=='OK').map(toRow)]);
+  ws2['!cols'] = cols;
+  XLSX.utils.book_append_sheet(wb, ws2, 'Solo Diferencias');
+
+  const c = counts();
+  const ws3 = XLSX.utils.aoa_to_sheet([
+    ['Resumen',''],
+    ['Total artículos', allRows.length],
+    ['Stock OK (ERP = WMS)', c['OK']||0],
+    ['ERP > WMS', c['ERP > WMS']||0],
+    ['WMS > ERP', c['WMS > ERP']||0],
+    ['Solo en ERP', c['Solo en ERP']||0],
+    ['Solo en WMS', c['Solo en WMS']||0],
+  ]);
+  ws3['!cols'] = [{wch:35},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Resumen');
+
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Comparativa_ERP_WMS_${date}.xlsx`);
+});
+</script>
+</body>
+</html>
